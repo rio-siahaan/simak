@@ -1,0 +1,19 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://localhost:20128",
+    "ANTHROPIC_AUTH_TOKEN": "sk-0ed133155ae7013c-05ad2e-17f0d946",
+    "ANTHROPIC_MODEL": "auto/best-free",
+    "ANTHROPIC_SMALL_FAST_MODEL": "auto/best-free",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "auto/best-free",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "auto/best-free",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "auto/best-free",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+  },
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "PowerShell(Get-ChildItem -Path \"D:\\\\Z. LATSAR\\\\simak\\\\src\" -Recurse -File | Where-Object { $_.FullName -notmatch 'node_modules' } | Select-Object FullName | Format-Table -AutoSize -Wrap)",
+      "PowerShell(node -e \"const pkg=require\\('./node_modules/next/package.json'\\); console.log\\('Next.js version:', pkg.version\\)\")"
+    ]
+  }
+}
