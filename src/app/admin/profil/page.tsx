@@ -65,6 +65,7 @@ export default function ProfilPenggunaPage() {
         team: updatedUser.team,
         whatsapp: updatedUser.whatsapp,
         role: user.role, // role tidak boleh diedit sendiri
+        nip: user.nip, // nip tidak boleh diedit sendiri
       });
 
       setIsEditing(false);

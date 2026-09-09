@@ -205,8 +205,8 @@ export default function TambahPenggunaPage() {
               >
                 <option value="">Pilih tim</option>
                 {TEAMS.map((team) => (
-                  <option key={team} value={team}>
-                    {team}
+                  <option key={team.id} value={team.id}>
+                    {team.name}
                   </option>
                 ))}
               </select>

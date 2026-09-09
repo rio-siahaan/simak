@@ -31,6 +31,7 @@ export async function sendWhatsApp(
   target: string,
   message: string,
   meta?: {
+    test?: boolean;
     activityId?: string;
     userId?: string;
     type?: string;
@@ -232,14 +233,19 @@ export async function notifyAllActors(
     return { success: 0, failed: 0, details: [{ error: 'Tidak ada aktor untuk kegiatan ini' }] };
   }
 
+  // Supabase join `users!inner(whatsapp)` mengembalikan array — cast ke objek tunggal
+  type ActorRow = { user_id: string; user_name: string; users: { whatsapp: string } | { whatsapp: string }[] };
+  const typedActors = actors as unknown as ActorRow[];
+
   // Kirim ke setiap aktor paralel (batch) — rate limit Fonnte ~30/menit, cukup untuk skala BPS
   const results = await Promise.all(
-    actors.map(async (a) => {
+    typedActors.map(async (a) => {
+      const whatsapp = Array.isArray(a.users) ? a.users[0]?.whatsapp : a.users.whatsapp;
       const res = await notifyActor({
         activity_id: activityId,
         user_id: a.user_id,
         type,
-        user: { id: a.user_id, name: a.user_name, whatsapp: a.users.whatsapp },
+        user: { id: a.user_id, name: a.user_name, whatsapp },
         activity,
       });
       return { user_id: a.user_id, ...res };

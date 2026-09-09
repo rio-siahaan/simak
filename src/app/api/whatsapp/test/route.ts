@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
     }
 
     let message: string;
-    let testMeta = { test: true };
+    let testMeta: Record<string, any> = { test: true };
 
     if (use_template && activity_id) {
       // Gunakan template dari notification-templates.ts

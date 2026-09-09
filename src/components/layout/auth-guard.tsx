@@ -16,6 +16,7 @@ export interface UserSession {
 interface AuthContextType {
   user: UserSession | null;
   loading: boolean;
+  login: (userData: UserSession) => void;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>; // BARU: dipanggil manual setelah login berhasil
 }
@@ -80,6 +81,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     router.refresh();
   };
 
+  // login: update user state secara lokal (dipanggil profil setelah edit data diri)
+  // Supaya context langsung sinkron tanpa perlu fetch ulang dari server
+  const login = (userData: UserSession) => {
+    setUser(userData);
+  };
+
   // refreshUser: dipanggil manual setelah login berhasil, supaya Context
   // langsung sinkron dengan sesi baru tanpa menunggu remount AuthProvider
   // (yang praktis tidak pernah terjadi selama masih di tab yang sama).
@@ -90,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

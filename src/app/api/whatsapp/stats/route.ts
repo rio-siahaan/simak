@@ -80,22 +80,30 @@ export async function GET(request: NextRequest) {
       return acc;
     }, {} as Record<string, number>) || {};
 
+    // Supabase join mengembalikan array untuk relasi — cast via unknown ke bentuk yang benar
+    const typedNotifications = (notifications || []) as unknown as Array<{
+      id: any; activity_id: any; user_id: any; type: any; status: any;
+      sent_at: any; error_message: any; created_at: any;
+      activities: { id: any; title: any; team: any; start_date: any; deadline: any } | null;
+      users: { id: any; name: any; team: any; whatsapp: any } | null;
+    }>;
+
     // Statistik per user
-    const byUser = notifications?.reduce((acc, n) => {
+    const byUser = typedNotifications.reduce((acc, n) => {
       const userName = n.users?.name || 'Unknown';
       acc[userName] = (acc[userName] || 0) + 1;
       return acc;
     }, {} as Record<string, number>) || {};
 
     // Statistik per tim
-    const byTeam = notifications?.reduce((acc, n) => {
+    const byTeam = typedNotifications.reduce((acc, n) => {
       const team = n.users?.team || 'Unknown';
       acc[team] = (acc[team] || 0) + 1;
       return acc;
     }, {} as Record<string, number>) || {};
 
     // Error details untuk yang gagal
-    const failedDetails = notifications?.filter(n => n.status === 'failed').map(n => ({
+    const failedDetails = typedNotifications.filter(n => n.status === 'failed').map(n => ({
       activity: n.activities?.title,
       user: n.users?.name,
       type: n.type,

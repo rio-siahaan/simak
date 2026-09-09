@@ -32,8 +32,6 @@ interface UserOption {
 
 type ActivityStatus = "pending" | "active" | "completed";
 
-const TEAM_OPTIONS = TEAMS.filter((t) => t.id !== "all");
-
 /** Hitung status otomatis dari tanggal mulai */
 function computeAutoStatus(start_date: string, deadline: string): ActivityStatus {
   if (!start_date || !deadline) return "pending";
@@ -88,7 +86,7 @@ export default function TambahKegiatanPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  const teamObj = TEAM_OPTIONS.find((t) => t.id === teamId);
+  const teamObj = TEAMS.find((t) => t.id === teamId);
   const teamName = teamObj?.name ?? teamId;
   const teamColor = (teamObj as any)?.color ?? "#6B7280";
   const autoStatus = computeAutoStatus(startDate, deadline);
@@ -278,7 +276,7 @@ export default function TambahKegiatanPage() {
                 disabled
               >
                 <option value="">{displayTeamName(teamName)}</option>
-                {TEAM_OPTIONS.map((t) => (
+                {TEAMS.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
                   </option>
@@ -329,7 +327,7 @@ export default function TambahKegiatanPage() {
                     <option value="">Pilih PIC / Penanggung Jawab</option>
                     {actorOptions.map((u) => (
                       <option key={u.id} value={u.id}>
-                        {u.name} — {TEAM_OPTIONS.find((t) => t.id === u.team)?.name || u.team}
+                        {u.name} — {TEAMS.find((t) => t.id === u.team)?.name || u.team}
                       </option>
                     ))}
                   </select>
@@ -345,7 +343,7 @@ export default function TambahKegiatanPage() {
                   <div className="flex-1">
                     <p className="font-semibold text-amber-900">{selectedActor.name}</p>
                     <p className="text-xs text-amber-700">
-                      {TEAM_OPTIONS.find((t) => t.id === selectedActor.team)?.name || selectedActor.team}
+                      {TEAMS.find((t) => t.id === selectedActor.team)?.name || selectedActor.team}
                     </p>
                   </div>
                 </div>
@@ -413,7 +411,7 @@ export default function TambahKegiatanPage() {
                       disabled={submitting || submitSuccess}
                     >
                       <option value="">Semua Tim</option>
-                      {TEAM_OPTIONS.map((t) => (
+                      {TEAMS.map((t) => (
                         <option key={t.id} value={t.id}>
                           {t.name}
                         </option>
@@ -461,7 +459,7 @@ export default function TambahKegiatanPage() {
                     ) : (
                       availableOfficers.map((u) => {
                         const checked = selectedOfficerIds.has(u.id);
-                        const teamInfo = TEAM_OPTIONS.find((t) => t.id === u.team);
+                        const teamInfo = TEAMS.find((t) => t.id === u.team);
                         return (
                           <label
                             key={u.id}
