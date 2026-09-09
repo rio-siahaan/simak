@@ -5,9 +5,10 @@ import Link from "next/link";
 import { Calendar, dateFnsLocalizer, View } from "react-big-calendar";
 import { format, parse, startOfWeek, getDay, addMonths, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { id } from "date-fns/locale";
-import { Plus, ChevronLeft, ChevronRight, Loader2, X, ExternalLink, Save, CheckCircle2, Clock, AlertCircle, XCircle } from "lucide-react";
+import { Plus, ChevronLeft, ChevronRight, Loader2, X, ExternalLink, Save, CheckCircle2, Clock } from "lucide-react";
 import { API_ENDPOINTS } from "@/lib/constants";
 import { getTeamColor } from "@/lib/db-helpers";
+import { displayTeamName } from "@/lib/db-helpers";
 import { useAuth } from "@/components/layout/auth-guard";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
@@ -35,8 +36,7 @@ interface CalendarEvent {
   actorId?: string;
   aktor?: string;
   deadline?: Date;
-  status: "pending" | "active" | "completed" | "overdue" | "delayed";
-  progress: number;
+  status: "pending" | "active" | "completed";
   description?: string;
   evidence_url?: string;
 }
@@ -57,30 +57,47 @@ const STATUS_CONFIG = {
     color: "bg-green-100 text-green-700 border-green-200",
     icon: CheckCircle2,
   },
-  overdue: {
-    label: "Terlambat",
-    color: "bg-red-100 text-red-700 border-red-200",
-    icon: AlertCircle,
-  },
-  delayed: {
-    label: "Tertunda",
-    color: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    icon: XCircle,
-  },
 };
 
 // Data tim dengan warna masing-masing
 const TEAMS = [
   { id: "all", name: "Semua Tim", color: "" },
-  { id: "sosial", name: "Statistik Sosial", color: "#3B82F6" },
-  { id: "produksi", name: "Produksi", color: "#F97316" },
-  { id: "distribusi", name: "Distribusi", color: "#10B981" },
-  { id: "ipds", name: "IPDS", color: "#8B5CF6" },
-  { id: "nwas", name: "NWAS", color: "#EF4444" },
-  { id: "pss", name: "PSS", color: "#06B6D4" },
-  { id: "umum", name: "Subbag Umum", color: "#F59E0B" },
-  { id: "humas", name: "Humas", color: "#EC4899" },
+  { id: "sosial", name: "Ketua Tim Sosial", color: "#3B82F6" },
+  { id: "produksi", name: "Ketua Tim Produksi", color: "#F97316" },
+  { id: "distribusi", name: "Ketua Tim Distribusi", color: "#10B981" },
+  { id: "ipds", name: "Ketua Tim IPDS", color: "#8B5CF6" },
+  { id: "nwas", name: "Ketua Tim NWAS", color: "#EF4444" },
+  { id: "pss", name: "Ketua Tim PSS", color: "#06B6D4" },
+  { id: "umum", name: "Kepala Sub Bagian Umum", color: "#F59E0B" },
+  { id: "sakernas", name: "Ketua Tim Sakernas", color: "#EC4899" },
 ];
+
+// Lookup cepat: team id -> warna hex
+const TEAM_COLOR_MAP: Record<string, string> = TEAMS.reduce((acc, t) => {
+  if (t.id !== "all") acc[t.id] = t.color;
+  return acc;
+}, {} as Record<string, string>);
+
+// Warna teks putih kadang susah dibaca di warna terang (kuning, cyan) —
+// daftar manual team yang perlu teks gelap biar tetap kontras
+const DARK_TEXT_TEAMS = new Set(["umum", "pss"]);
+
+const eventStyleGetter = (event: any) => {
+  const teamColor = TEAM_COLOR_MAP[event.team] || "#6B7280"; // fallback abu-abu kalau team tidak dikenali
+  const isDarkText = DARK_TEXT_TEAMS.has(event.team);
+
+  return {
+    style: {
+      backgroundColor: teamColor,
+      borderRadius: "6px",
+      border: "none",
+      color: isDarkText ? "#1F2937" : "#ffffff",
+      fontSize: "12px",
+      fontWeight: 600,
+      padding: "2px 6px",
+    },
+  };
+};
 
 export default function KalenderKegiatanPage() {
   const { user } = useAuth();
@@ -96,9 +113,8 @@ export default function KalenderKegiatanPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [editStatus, setEditStatus] = useState<CalendarEvent["status"]>("pending");
-  const [editProgress, setEditProgress] = useState(0);
   const [editEvidenceUrl, setEditEvidenceUrl] = useState("");
-  const [savingProgress, setSavingProgress] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
   const [modalMode, setModalMode] = useState<"view" | "edit">("view");
 
   // Fetch activities dari API berdasarkan bulan yang ditampilkan
@@ -148,8 +164,8 @@ export default function KalenderKegiatanPage() {
         actorId: activity.actor_id,
         aktor: activity.actor_name,
         deadline: new Date(activity.deadline),
-        status: activity.status,
-        progress: activity.progress || 0,
+        // Normalisasi status lama (overdue/delayed) jadi active
+        status: activity.status === "overdue" || activity.status === "delayed" ? "active" : activity.status,
         description: activity.description,
         evidence_url: activity.evidence_url,
       }));
@@ -167,7 +183,7 @@ export default function KalenderKegiatanPage() {
   // Filter events berdasarkan filter tim & toggle aktor
   const filteredEvents = useMemo(() => {
     let result = events;
-    
+
     // Saring tim jika ada pilihan tim khusus
     if (selectedTeam !== "all") {
       const teamName = TEAMS.find((t) => t.id === selectedTeam)?.name;
@@ -182,22 +198,22 @@ export default function KalenderKegiatanPage() {
     return result;
   }, [events, selectedTeam, user, showOnlyMyEvents]);
 
-  // Custom event style berdasarkan tim
-  const eventStyleGetter = (event: CalendarEvent) => {
-    const style = {
-      backgroundColor: event.teamColor,
-      borderRadius: "8px",
-      opacity: 0.9,
-      color: "white",
-      border: "none",
-      display: "block",
-      fontSize: "12px",
-      fontWeight: 600,
-      padding: "3px 8px",
-      boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
-    };
-    return { style };
-  };
+  // // Custom event style berdasarkan tim
+  // const eventStyleGetter = (event: CalendarEvent) => {
+  //   const style = {
+  //     backgroundColor: event.teamColor,
+  //     borderRadius: "8px",
+  //     opacity: 0.9,
+  //     color: "white",
+  //     border: "none",
+  //     display: "block",
+  //     fontSize: "12px",
+  //     fontWeight: 600,
+  //     padding: "3px 8px",
+  //     boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
+  //   };
+  //   return { style };
+  // };
 
   // Handle navigasi bulan
   const handleNavigate = useCallback((action: "PREV" | "NEXT" | "TODAY") => {
@@ -212,7 +228,6 @@ export default function KalenderKegiatanPage() {
   const handleSelectEvent = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event);
     setEditStatus(event.status);
-    setEditProgress(event.progress);
     setEditEvidenceUrl(event.evidence_url || "");
     setModalMode("view");
     setIsModalOpen(true);
@@ -235,14 +250,14 @@ export default function KalenderKegiatanPage() {
     showMore: (total: number) => `+${total} lagi`,
   };
 
-  // Cek apakah user boleh edit progres
-  const canUserEditProgress = (event: CalendarEvent) => {
+  // Cek apakah user boleh edit status
+  const canUserEditStatus = (event: CalendarEvent) => {
     if (!user) return false;
     return user.role === "Admin" || event.actorId === user.id;
   };
 
-  // Handle submit perubahan progres
-  const handleSaveProgress = async (e: React.FormEvent) => {
+  // Handle submit perubahan status
+  const handleSaveStatus = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedEvent) return;
 
@@ -252,36 +267,35 @@ export default function KalenderKegiatanPage() {
     }
 
     try {
-      setSavingProgress(true);
+      setSavingStatus(true);
       const response = await fetch(`${API_ENDPOINTS.activities}/${selectedEvent.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: editStatus,
-          progress: Number(editProgress),
           evidence_url: editEvidenceUrl,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Gagal mengupdate progres kegiatan");
+        throw new Error("Gagal mengupdate status kegiatan");
       }
 
       await fetchActivities();
       setIsModalOpen(false);
-      alert("Progres kegiatan berhasil diperbarui");
+      alert("Status kegiatan berhasil diperbarui");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal memperbarui");
       console.error(err);
     } finally {
-      setSavingProgress(false);
+      setSavingStatus(false);
     }
   };
 
   return (
     <div className="min-h-screen bg-gray-50/50">
       <div className="max-w-[1400px] mx-auto p-8">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between mb-8 bg-white p-6 rounded-2xl border border-gray-200/80 shadow-sm">
           <div>
@@ -294,7 +308,7 @@ export default function KalenderKegiatanPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            
+
             {/* Toggle filter Aktor */}
             {user?.role === "Aktor" && (
               <label className="flex items-center gap-2 cursor-pointer bg-purple-50/80 border border-purple-200 rounded-xl px-4 py-2.5 hover:bg-purple-50 transition-all shadow-sm">
@@ -333,7 +347,27 @@ export default function KalenderKegiatanPage() {
             )}
           </div>
         </div>
+        {/* Legend - Keterangan Warna Tim */}
+        {!loading && !error && (
+          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
+            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">
+              Keterangan Warna Tim Kerja
+            </h3>
+            <div className="flex flex-wrap gap-x-6 gap-y-3">
+              {TEAMS.filter((team) => team.id !== "all").map((team) => (
+                <div key={team.id} className="flex items-center gap-2">
+                  <div
+                    className="w-4 h-4 rounded-md shadow-sm shrink-0"
+                    style={{ backgroundColor: team.color }}
+                  ></div>
+                  <span className="text-xs font-semibold text-gray-700">{team.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
+        <br />
         {/* Loading & Error */}
         {loading && (
           <div className="flex flex-col items-center justify-center py-20 bg-white border border-gray-200 rounded-2xl shadow-sm mb-6">
@@ -410,38 +444,18 @@ export default function KalenderKegiatanPage() {
           </div>
         )}
 
-        {/* Legend - Keterangan Warna Tim */}
-        {!loading && !error && (
-          <div className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm">
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4">
-              Keterangan Warna Tim Kerja
-            </h3>
-            <div className="flex flex-wrap gap-x-6 gap-y-3">
-              {TEAMS.filter((team) => team.id !== "all").map((team) => (
-                <div key={team.id} className="flex items-center gap-2">
-                  <div
-                    className="w-4 h-4 rounded-md shadow-sm shrink-0"
-                    style={{ backgroundColor: team.color }}
-                  ></div>
-                  <span className="text-xs font-semibold text-gray-700">{team.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* ========================================================== */}
         {/* DETAIL & EDIT MODAL FOR CALENDAR EVENTS                    */}
         {/* ========================================================== */}
         {isModalOpen && selectedEvent && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl shadow-2xl border border-gray-100 max-w-xl w-full max-h-[90vh] overflow-y-auto flex flex-col">
-              
+
               {/* Header */}
               <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-white sticky top-0 z-10">
                 <div>
                   <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest block mb-0.5">
-                    Kegiatan &middot; Tim {selectedEvent.team}
+                    Kegiatan &middot; {displayTeamName(selectedEvent.team)}
                   </span>
                   <h2 className="text-xl font-bold text-gray-900 tracking-tight">
                     {selectedEvent.title}
@@ -482,25 +496,11 @@ export default function KalenderKegiatanPage() {
                       <div>
                         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Status</span>
                         <div className="mt-1">
-                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${
-                            STATUS_CONFIG[selectedEvent.status]?.color || STATUS_CONFIG.pending.color
-                          }`}>
+                          <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${STATUS_CONFIG[selectedEvent.status]?.color || STATUS_CONFIG.pending.color
+                            }`}>
                             {STATUS_CONFIG[selectedEvent.status]?.label || selectedEvent.status}
                           </span>
                         </div>
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Kemajuan / Progress</span>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 bg-gray-100 rounded-full h-3">
-                          <div
-                            className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500"
-                            style={{ width: `${selectedEvent.progress}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-bold text-gray-800">{selectedEvent.progress}%</span>
                       </div>
                     </div>
 
@@ -530,19 +530,19 @@ export default function KalenderKegiatanPage() {
                       )}
                     </div>
 
-                    {canUserEditProgress(selectedEvent) && (
+                    {canUserEditStatus(selectedEvent) && (
                       <div className="pt-4 border-t border-gray-150 flex justify-end">
                         <button
                           onClick={() => setModalMode("edit")}
                           className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors"
                         >
-                          Update Progres & Bukti Dukung
+                          Update Status & Bukti Dukung
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <form onSubmit={handleSaveProgress} className="space-y-5">
+                  <form onSubmit={handleSaveStatus} className="space-y-5">
                     <div className="space-y-1.5">
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                         Status Kegiatan
@@ -555,31 +555,7 @@ export default function KalenderKegiatanPage() {
                         <option value="pending">Belum Dimulai</option>
                         <option value="active">Sedang Berjalan</option>
                         <option value="completed">Selesai</option>
-                        <option value="delayed">Tertunda</option>
-                        <option value="overdue">Terlambat</option>
                       </select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                          Persentase Progress
-                        </label>
-                        <span className="text-sm font-bold text-blue-600">{editProgress}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={editProgress}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setEditProgress(val);
-                          if (val === 100) setEditStatus("completed");
-                          else if (val > 0 && editStatus === "pending") setEditStatus("active");
-                        }}
-                        className="w-full accent-blue-600"
-                      />
                     </div>
 
                     <div className="space-y-1.5">
@@ -603,13 +579,13 @@ export default function KalenderKegiatanPage() {
                       >
                         Batal
                       </button>
-                      
+
                       <button
                         type="submit"
-                        disabled={savingProgress}
+                        disabled={savingStatus}
                         className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-md transition-all flex items-center gap-1.5"
                       >
-                        {savingProgress ? (
+                        {savingStatus ? (
                           <>
                             <Loader2 className="w-4 h-4 animate-spin" />
                             Menyimpan...

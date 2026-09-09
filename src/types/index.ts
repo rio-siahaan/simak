@@ -21,7 +21,7 @@ export type TeamType =
   | "nwas"
   | "pss"
   | "umum"
-  | "humas";
+  | "sakernas";
 
 export interface Activity {
   id: string;
@@ -46,9 +46,7 @@ export interface Activity {
 export type ActivityStatus =
   | "pending" // Belum dimulai
   | "active" // Sedang berjalan
-  | "completed" // Selesai
-  | "delayed" // Tertunda
-  | "overdue"; // Terlambat (deadline lewat)
+  | "completed"; // Selesai
 
 export interface Notification {
   id: string;
@@ -62,9 +60,8 @@ export interface Notification {
 }
 
 export type NotificationType =
-  | "activity_created" // Notifikasi saat kegiatan dibuat
-  | "reminder_h1" // Pengingat H-1
-  | "overdue"; // Notifikasi terlambat
+  | "created" // Notifikasi saat kegiatan dibuat
+  | "completed"; // Notifikasi saat kegiatan selesai
 
 export type NotificationStatus = "pending" | "sent" | "failed";
 
@@ -87,14 +84,14 @@ export interface TeamMetadata {
 }
 
 export const TEAM_METADATA: Record<TeamType, TeamMetadata> = {
-  sosial: { id: "sosial", name: "Statistik Sosial", color: "#3B82F6" },
-  produksi: { id: "produksi", name: "Produksi", color: "#F97316" },
-  distribusi: { id: "distribusi", name: "Distribusi", color: "#10B981" },
-  ipds: { id: "ipds", name: "IPDS", color: "#8B5CF6" },
-  nwas: { id: "nwas", name: "NWAS", color: "#EF4444" },
-  pss: { id: "pss", name: "PSS", color: "#06B6D4" },
-  umum: { id: "umum", name: "Subbag Umum", color: "#F59E0B" },
-  humas: { id: "humas", name: "Humas", color: "#EC4899" },
+  sosial: { id: "sosial", name: "Ketua Tim Sosial", color: "#3B82F6" },
+  produksi: { id: "produksi", name: "Ketua Tim Produksi", color: "#F97316" },
+  distribusi: { id: "distribusi", name: "Ketua Tim Distribusi", color: "#10B981" },
+  ipds: { id: "ipds", name: "Ketua Tim IPDS", color: "#8B5CF6" },
+  nwas: { id: "nwas", name: "Ketua Tim Nerwilis", color: "#EF4444" },
+  pss: { id: "pss", name: "Ketua Tim PSS", color: "#06B6D4" },
+  umum: { id: "umum", name: "Kepala Sub Bagian Umum", color: "#F59E0B" },
+  sakernas: { id: "sakernas", name: "Ketua Tim Sakernas", color: "#EC4899" },
 };
 
 // Helper type untuk form data

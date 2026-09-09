@@ -41,7 +41,7 @@ export interface Activity {
   actor_names?: string[]; // array nama pelaksana (denormalized)
   start_date: string;
   deadline: string;
-  status: 'pending' | 'active' | 'completed' | 'overdue' | 'delayed';
+  status: 'pending' | 'active' | 'completed';
   progress: number;
   description?: string;
   evidence_url?: string; // Link ke Google Drive untuk bukti dukung
@@ -72,7 +72,7 @@ export interface Notification {
   id?: string;
   activity_id: string;
   user_id: string;
-  type: 'created' | 'reminder_h1' | 'overdue' | 'evidence_uploaded';
+  type: 'created' | 'completed';
   status: 'pending' | 'sent' | 'failed';
   sent_at?: string;
   error_message?: string;

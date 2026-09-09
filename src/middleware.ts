@@ -40,6 +40,7 @@ const PUBLIC_ROUTES = [
   '/api/whatsapp/test', // Test WhatsApp (untuk debugging)
   '/api/whatsapp/stats', // Stats WhatsApp
   '/api/cron/update-status', // Cron job (dipanggil sistem)
+  '/api/public/pegawai', // API publik untuk foto pegawai di landing page
 ];
 
 // ============================================

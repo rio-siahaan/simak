@@ -136,13 +136,6 @@ export default function DashboardAdminPage() {
           icon: Clock,
         },
         {
-          label: "Tugas Terlambat Saya",
-          value: stats.overdue,
-          color: "bg-red-50 border-red-100",
-          textColor: "text-red-700",
-          icon: AlertCircle,
-        },
-        {
           label: "Jatuh Tempo Saya (≤ 2 Hari)",
           value: stats.dueSoon,
           color: "bg-amber-50 border-amber-100",
@@ -157,13 +150,6 @@ export default function DashboardAdminPage() {
           color: "bg-white border-gray-200",
           textColor: "text-gray-900",
           icon: Clock,
-        },
-        {
-          label: "Kegiatan Terlambat",
-          value: stats.overdue,
-          color: "bg-red-50 border-red-100",
-          textColor: "text-red-700",
-          icon: AlertCircle,
         },
         {
           label: "Jatuh Tempo (≤ 2 Hari)",

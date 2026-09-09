@@ -55,10 +55,18 @@ export async function PATCH(
       start_date,
       deadline,
       status,
-      progress,
       description,
       evidence_url,
     } = body;
+
+    // Catat status lama dulu: dipakai untuk menghindari notifikasi "selesai"
+    // yang ganda kalau kegiatan yang sama berulang kali di-set completed.
+    const { data: beforeActivity } = await supabase
+      .from("activities")
+      .select("status")
+      .eq("id", id)
+      .single();
+    const wasCompleted = beforeActivity?.status === "completed";
 
     // Validasi tanggal jika diubah
     if (deadline && start_date && new Date(deadline) < new Date(start_date)) {
@@ -66,20 +74,6 @@ export async function PATCH(
         { error: "Deadline tidak boleh lebih awal dari tanggal mulai" },
         { status: 400 }
       );
-    }
-
-    // Cek apakah evidence_url baru diisi (untuk trigger notifikasi)
-    const isEvidenceNewlyUploaded = evidence_url !== undefined && evidence_url !== null && evidence_url !== '';
-
-    // Ambil data kegiatan sebelum update untuk cek evidence_url lama
-    let oldEvidenceUrl: string | null = null;
-    if (isEvidenceNewlyUploaded) {
-      const { data: oldActivity } = await supabase
-        .from("activities")
-        .select("evidence_url")
-        .eq("id", id)
-        .single();
-      oldEvidenceUrl = oldActivity?.evidence_url || null;
     }
 
     const updateData: any = { updated_at: new Date().toISOString() };
@@ -91,7 +85,6 @@ export async function PATCH(
     if (start_date !== undefined) updateData.start_date = start_date;
     if (deadline !== undefined) updateData.deadline = deadline;
     if (status !== undefined) updateData.status = status;
-    if (progress !== undefined) updateData.progress = progress;
     if (description !== undefined) updateData.description = description;
     if (evidence_url !== undefined) updateData.evidence_url = evidence_url;
 
@@ -109,8 +102,38 @@ export async function PATCH(
       );
     }
 
-    // TIDAK ada notifikasi evidence_uploaded lagi untuk hemat kuota Fonnte
-    // Link bukti dukung sudah diberikan di notifikasi 'created' pertama kali
+    // 🔔 Notifikasi "kegiatan selesai" — hanya dikirim saat status BERUBAH
+    // menjadi completed (bukan saat edit data lain / re-save yang sama).
+    if (data && status === "completed" && !wasCompleted) {
+      try {
+        const { notifyActor } = await import("@/lib/whatsapp");
+        const { data: actorUser } = await supabase
+          .from("users")
+          .select("id, name, whatsapp")
+          .eq("id", data.actor_id)
+          .single();
+
+        if (actorUser?.whatsapp) {
+          await notifyActor({
+            activity_id: data.id,
+            user_id: actorUser.id,
+            type: "completed",
+            user: actorUser as { id: string; name: string; whatsapp: string },
+            activity: {
+              id: data.id,
+              title: data.title,
+              team: data.team,
+              start_date: data.start_date,
+              deadline: data.deadline,
+              description: data.description,
+              evidence_url: data.evidence_url,
+            },
+          });
+        }
+      } catch (err) {
+        console.error("[WhatsApp] Gagal kirim notifikasi selesai:", err);
+      }
+    }
 
     return NextResponse.json(
       { data, message: "Kegiatan berhasil diupdate" },

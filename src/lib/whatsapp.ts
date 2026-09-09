@@ -254,46 +254,6 @@ export async function notifyAllActors(
   return { success, failed, details: results };
 }
 
-/**
- * Kirim notifikasi konfirmasi bukti dukung ke aktor
- * Dipanggil saat aktor mengisi link bukti dukung
- */
-export async function notifyEvidenceUploaded(params: {
-  activityId: string;
-  actorId: string;
-  actorName: string;
-  actorWhatsapp: string;
-  activityTitle: string;
-  team: string;
-  startDate: string;
-  deadline: string;
-  evidenceUrl: string;
-}): Promise<{ success: boolean; error?: string }> {
-  const message = buildMessageFromTemplate('evidence_uploaded', {
-    title: params.activityTitle,
-    team: params.team,
-    start_date: params.startDate,
-    deadline: params.deadline,
-    evidence_url: params.evidenceUrl,
-  }, params.actorName);
-
-  const sendResult = await sendWhatsApp(params.actorWhatsapp, message);
-
-  // Catat ke database
-  await supabase
-    .from('notifications')
-    .upsert({
-      activity_id: params.activityId,
-      user_id: params.actorId,
-      type: 'evidence_uploaded',
-      status: sendResult.success ? 'sent' : 'failed',
-      sent_at: sendResult.success ? new Date().toISOString() : null,
-      error_message: sendResult.error || null,
-    });
-
-  return sendResult;
-}
-
 // Re-export untuk backward compatibility
 export { buildMessageFromTemplate as buildNotificationMessage };
 export type { NotificationType };

@@ -40,32 +40,6 @@ export function getDaysDifference(date1: Date | string, date2: Date | string): n
 }
 
 /**
- * Auto-update status kegiatan menjadi overdue jika melewati deadline
- */
-export async function updateOverdueActivities() {
-  try {
-    const now = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from('activities')
-      .update({ status: 'overdue' })
-      .lt('deadline', now)
-      .not('status', 'in', '(completed,overdue)')
-      .select();
-
-    if (error) return handleSupabaseError(error);
-
-    return {
-      success: true,
-      data,
-      message: `${data?.length || 0} kegiatan diupdate menjadi overdue`,
-    };
-  } catch (error) {
-    return handleSupabaseError(error);
-  }
-}
-
-/**
  * Get statistik dashboard
  */
 export async function getDashboardStats(actorId?: string) {
@@ -89,7 +63,6 @@ export async function getDashboardStats(actorId?: string) {
 
     const stats = {
       active: activities?.filter(a => a.status === 'active').length || 0,
-      overdue: activities?.filter(a => a.status === 'overdue').length || 0,
       dueSoon: activities?.filter(a => {
         const deadline = new Date(a.deadline);
         return deadline > now && deadline <= twoDaysFromNow && a.status !== 'completed';
@@ -121,7 +94,7 @@ export async function getDashboardStats(actorId?: string) {
 }
 
 /**
- * Get kegiatan yang perlu perhatian (terlambat atau jatuh tempo <=2 hari)
+ * Get kegiatan yang perlu perhatian (jatuh tempo <=2 hari)
  */
 export async function getAttentionRequired(actorId?: string) {
   try {
@@ -138,7 +111,8 @@ export async function getAttentionRequired(actorId?: string) {
     }
 
     query = query
-      .or(`status.eq.overdue,and(deadline.lte.${twoDaysFromNow.toISOString()},status.neq.completed)`)
+      .lte('deadline', twoDaysFromNow.toISOString())
+      .neq('status', 'completed')
       .order('deadline', { ascending: true })
       .limit(10);
 
@@ -252,8 +226,6 @@ export function mapStatusToDatabase(statusIndo: string): string {
     'Belum Dimulai': 'pending',
     'Sedang Berjalan': 'active',
     'Selesai': 'completed',
-    'Terlambat': 'overdue',
-    'Tertunda': 'delayed',
   };
   return statusMap[statusIndo] || statusIndo.toLowerCase();
 }
@@ -266,10 +238,20 @@ export function mapStatusToIndonesian(status: string): string {
     'pending': 'Belum Dimulai',
     'active': 'Sedang Berjalan',
     'completed': 'Selesai',
-    'overdue': 'Terlambat',
-    'delayed': 'Tertunda',
   };
   return statusMap[status] || status;
+}
+
+/**
+ * Nama tampilan tim untuk UI.
+ * Kolom `team` di DB kadang menyimpan jabatan struktural ("Ketua Tim Produksi")
+ * bukan nama tim ringkas ("Produksi"). Saat menampilkan di UI, samakan awalan
+ * "Ketua Tim " menjadi "Tim " (mis. "Ketua Tim Produksi" -> "Tim Produksi").
+ * Nilai asli di database TIDAK diubah — ini murni untuk tampilan.
+ */
+export function displayTeamName(team: string): string {
+  if (!team) return team;
+  return team.replace(/^Ketua Tim\s+/, "Tim ");
 }
 
 /**
@@ -277,14 +259,14 @@ export function mapStatusToIndonesian(status: string): string {
  */
 export function getTeamColor(teamName: string): string {
   const teamColors: { [key: string]: string } = {
-    'Statistik Sosial': '#3B82F6', // blue
-    'Produksi': '#F97316', // orange
-    'Distribusi': '#10B981', // green
-    'IPDS': '#8B5CF6', // purple
-    'NWAS': '#EF4444', // red
-    'PSS': '#06B6D4', // cyan
-    'Subbag Umum': '#F59E0B', // amber
-    'Humas': '#EC4899', // pink
+    'Ketua Tim Sosial': '#3B82F6', // blue
+    'Ketua Tim Produksi': '#F97316', // orange
+    'Ketua Tim Distribusi': '#10B981', // green
+    'Ketua Tim IPDS': '#8B5CF6', // purple
+    'Ketua Tim Nerwilis': '#EF4444', // red
+    'Ketua Tim PSS': '#06B6D4', // cyan
+    'Kepala Sub Bagian Umum': '#F59E0B', // amber
+    'Ketua Tim Sakernas': '#EC4899', // pink
   };
   return teamColors[teamName] || '#6B7280'; // gray default
 }

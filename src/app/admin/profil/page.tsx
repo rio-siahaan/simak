@@ -91,14 +91,14 @@ export default function ProfilPenggunaPage() {
   };
 
   const TEAMS = [
-    "IPDS",
-    "Statistik Sosial",
-    "Produksi",
-    "Distribusi",
-    "NWAS",
-    "PSS",
-    "Subbag Umum",
-    "Humas",
+    "Ketua Tim IPDS",
+    "Ketua Tim Sosial",
+    "Ketua Tim Produksi",
+    "Ketua Tim Distribusi",
+    "Ketua Tim Nerwilis",
+    "Ketua Tim PSS",
+    "Kepala Sub Bagian Umum",
+    "Ketua Tim Sakernas",
   ];
 
   if (!user) {

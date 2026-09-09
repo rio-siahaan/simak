@@ -1,10 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/components/layout/auth-guard";
+import { useAuth, type UserSession } from "@/components/layout/auth-guard";
 import {
   LayoutDashboard,
   Calendar,
@@ -55,6 +55,50 @@ const menuItems = [
   },
 ];
 
+/** Foto profil user dari bucket `foto-pegawai` (berdasar NIP).
+ *  Inisial tampil sebagai dasar saat foto masih loading / null / gagal,
+ *  lalu foto di-fade-in setelah selesai dimuat. */
+function SessionAvatar({ user }: { user: UserSession }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  const initials = user.name
+    .split(" ")
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
+  const photoUrl = user.nip
+    ? `${process.env.NEXT_PUBLIC_SUPABASE_URL || ""}/storage/v1/object/public/foto-pegawai/${user.nip}.webp`
+    : null;
+  const showPhoto = !!photoUrl && photoUrl.startsWith("http") && !imgError;
+
+  return (
+    <div className="relative w-10 h-10 shrink-0">
+      {/* Inisial selalu dirender sebagai dasar */}
+      <div className="w-full h-full bg-gray-800 text-white rounded-full flex items-center justify-center text-sm font-bold uppercase">
+        {initials}
+      </div>
+
+      {/* Foto bucket: fade-in setelah selesai dimuat */}
+      {showPhoto && (
+        <Image
+          src={photoUrl!}
+          alt={user.name}
+          width={40}
+          height={40}
+          onLoad={() => setImgLoaded(true)}
+          onError={() => setImgError(true)}
+          className={`absolute inset-0 w-full h-full object-cover rounded-full transition-opacity duration-300 ${
+            imgLoaded ? "opacity-100" : "opacity-0"
+          }`}
+        />
+      )}
+    </div>
+  );
+}
+
 export const Sidebar: React.FC = () => {
   const pathname = usePathname();
   const { user, logout } = useAuth();
@@ -72,10 +116,11 @@ export const Sidebar: React.FC = () => {
           <Link href="/" className="flex items-center gap-2">
             <div className="w-8 h-8 text-white rounded-lg flex items-center justify-center font-bold text-lg">
               <Image
-                src="/logo.png"
-                width={500}
-                height={500}
-                alt="Picture of the author"
+                src="/logo.webp"
+                width={50}
+                height={50}
+                alt="Logo BPS"
+                loading="lazy"
               />
             </div>
             <div>
@@ -117,13 +162,7 @@ export const Sidebar: React.FC = () => {
       {user && (
         <div className="p-4 border-t border-gray-200 bg-white flex flex-col gap-3">
           <div className="flex items-center gap-3 px-1">
-            <div className="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center text-sm font-bold uppercase shrink-0">
-              {user.name
-                .split(" ")
-                .map((n) => n[0])
-                .slice(0, 2)
-                .join("")}
-            </div>
+            <SessionAvatar user={user} />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold text-gray-900 truncate" title={user.name}>
                 {user.name}

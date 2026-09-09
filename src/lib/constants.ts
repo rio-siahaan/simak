@@ -5,14 +5,14 @@
  */
 export const TEAMS = [
   { id: 'all', name: 'Semua Tim', color: '' },
-  { id: 'sosial', name: 'Statistik Sosial', color: '#3B82F6' },
-  { id: 'produksi', name: 'Produksi', color: '#F97316' },
-  { id: 'distribusi', name: 'Distribusi', color: '#10B981' },
-  { id: 'ipds', name: 'IPDS', color: '#8B5CF6' },
-  { id: 'nwas', name: 'NWAS', color: '#EF4444' },
-  { id: 'pss', name: 'PSS', color: '#06B6D4' },
-  { id: 'umum', name: 'Subbag Umum', color: '#F59E0B' },
-  { id: 'humas', name: 'Humas', color: '#EC4899' },
+  { id: 'sosial', name: 'Ketua Tim Sosial', color: '#3B82F6' },
+  { id: 'produksi', name: 'Ketua Tim Produksi', color: '#F97316' },
+  { id: 'distribusi', name: 'Ketua Tim Distribusi', color: '#10B981' },
+  { id: 'ipds', name: 'Ketua Tim IPDS', color: '#8B5CF6' },
+  { id: 'nwas', name: 'Ketua Tim Nerwilis', color: '#EF4444' },
+  { id: 'pss', name: 'Ketua Tim PSS', color: '#06B6D4' },
+  { id: 'umum', name: 'Kepala Sub Bagian Umum', color: '#F59E0B' },
+  { id: 'sakernas', name: 'Ketua Tim Sakernas', color: '#EC4899' },
 ] as const;
 
 /**
@@ -34,16 +34,6 @@ export const ACTIVITY_STATUS = {
     color: 'bg-green-100 text-green-700',
     badgeColor: 'green',
   },
-  overdue: {
-    label: 'Terlambat',
-    color: 'bg-red-100 text-red-700',
-    badgeColor: 'red',
-  },
-  delayed: {
-    label: 'Tertunda',
-    color: 'bg-yellow-100 text-yellow-700',
-    badgeColor: 'yellow',
-  },
 } as const;
 
 /**
@@ -54,8 +44,6 @@ export const STATUS_FILTERS = [
   'Belum Dimulai',
   'Sedang Berjalan',
   'Selesai',
-  'Terlambat',
-  'Tertunda',
 ] as const;
 
 /**
@@ -68,20 +56,12 @@ export const USER_ROLES = ['Admin', 'Aktor'] as const;
  */
 export const NOTIFICATION_TYPES = {
   created: {
-    label: 'Kegiatan Dibuat',
-    description: 'Notifikasi saat kegiatan baru dibuat',
+    label: 'Kegiatan Ditugaskan',
+    description: 'Notifikasi saat kegiatan baru ditugaskan ke aktor',
   },
-  reminder_h1: {
-    label: 'Pengingat H-1',
-    description: 'Pengingat otomatis 1 hari sebelum deadline',
-  },
-  overdue: {
-    label: 'Terlambat',
-    description: 'Notifikasi kegiatan melewati deadline',
-  },
-  evidence_uploaded: {
-    label: 'Bukti Dukung Diupload',
-    description: 'Konfirmasi saat aktor mengisi link bukti dukung',
+  completed: {
+    label: 'Kegiatan Selesai',
+    description: 'Notifikasi saat status kegiatan diubah menjadi selesai',
   },
 } as const;
 

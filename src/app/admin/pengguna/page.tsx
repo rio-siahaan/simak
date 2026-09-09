@@ -99,13 +99,13 @@ export default function ManajemenPenggunaPage() {
             >
               <option>Semua Tim</option>
               <option>IPDS</option>
-              <option>Statistik Sosial</option>
-              <option>Produksi</option>
-              <option>Distribusi</option>
-              <option>NWAS</option>
-              <option>PSS</option>
-              <option>Subbag Umum</option>
-              <option>Humas</option>
+              <option>Tim Sosial</option>
+              <option>Tim Produksi</option>
+              <option>Tim Distribusi</option>
+              <option>Tim NWAS</option>
+              <option>Tim PSS</option>
+              <option>Tim Sub Bagian Umum</option>
+              <option>Tim Sakernas</option>
             </select>
             <Link
               href="/admin/pengguna/tambah"

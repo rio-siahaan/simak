@@ -1,27 +1,25 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+// import { supabase } from '@/lib/supabase';
+import { supabaseAdmin } from '@/lib/supabase/admin';
 
 /**
- * Hitung status otomatis berdasarkan tanggal mulai dan deadline.
+ * Hitung status otomatis berdasarkan tanggal mulai.
  * pending  : belum dimulai (start_date > sekarang)
- * active   : sedang berjalan (start_date ≤ sekarang ≤ deadline)
- * overdue  : terlambat (deadline < sekarang)
+ * active   : sudah dimulai — berlangsung; lewat deadline tetap "Sedang Berjalan"
+ *            sampai status diubah jadi completed secara manual (status "Terlambat"
+ *            sudah dihapus dari sistem).
  */
-function computeAutoStatus(
-  start_date: string,
-  deadline: string
-): 'pending' | 'active' | 'overdue' {
+function computeAutoStatus(start_date: string): 'pending' | 'active' {
   const now = new Date();
   const start = new Date(start_date);
-  const end = new Date(deadline);
   if (now < start) return 'pending';
-  if (now > end) return 'overdue';
   return 'active';
 }
 
 // GET - Ambil semua activities atau filter
 export async function GET(request: NextRequest) {
   try {
+
     const searchParams = request.nextUrl.searchParams;
     const team = searchParams.get('team');
     const status = searchParams.get('status');
@@ -30,29 +28,46 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('end_date');
     const actorId = searchParams.get('actor_id');
 
-    // Jika filter aktor: ambil activity_id dari junction table dulu
+    // Jika filter aktor: kumpulkan kegiatan terkait dari DUA sumber:
+    //  1) sebagai PIC utama (kolom activities.actor_id)
+    //  2) sebagai petugas pelaksana (junction activity_officers)
+    // PIC tidak pernah dimasukkan ke junction (form tambah mengecualikannya),
+    // jadi junction saja TIDAK cukup untuk menampilkan kegiatan milik aktor.
     let allowedIds: string[] | null = null;
     if (actorId) {
-      const { data: junctionRows, error: jErr } = await supabase
-        .from('activity_officers')
-        .select('activity_id')
-        .eq('user_id', actorId);
+      const [asActorResult, junctionResult] = await Promise.all([
+        supabaseAdmin
+          .from('activities')
+          .select('id')
+          .eq('actor_id', actorId),
+        supabaseAdmin
+          .from('activity_officers')
+          .select('activity_id')
+          .eq('user_id', actorId),
+      ]);
 
-      if (jErr) {
+      if (asActorResult.error || junctionResult.error) {
         return NextResponse.json(
-          { error: 'Gagal filter aktor', details: jErr.message },
+          {
+            error: 'Gagal filter aktor',
+            details: asActorResult.error?.message || junctionResult.error?.message,
+          },
           { status: 500 }
         );
       }
 
-      allowedIds = (junctionRows || []).map((r: any) => r.activity_id);
+      const idSet = new Set<string>();
+      (asActorResult.data || []).forEach((r: any) => idSet.add(r.id));
+      (junctionResult.data || []).forEach((r: any) => idSet.add(r.activity_id));
+
+      allowedIds = Array.from(idSet);
       // Jika tidak ada kegiatan untuk aktor ini, langsung return kosong
       if (allowedIds.length === 0) {
         return NextResponse.json({ data: [] }, { status: 200 });
       }
     }
 
-    let query = supabase
+    let query = supabaseAdmin
       .from('activities')
       .select('*')
       .order('start_date', { ascending: false });
@@ -73,8 +88,6 @@ export async function GET(request: NextRequest) {
         'Belum Dimulai': 'pending',
         'Sedang Berjalan': 'active',
         'Selesai': 'completed',
-        'Terlambat': 'overdue',
-        'Tertunda': 'delayed',
       };
       const mappedStatus = statusMap[status] || status.toLowerCase();
       query = query.eq('status', mappedStatus);
@@ -136,7 +149,6 @@ export async function POST(request: NextRequest) {
       start_date,
       deadline,
       description,
-      progress = 0,
     } = body;
 
     // Validasi input wajib
@@ -155,11 +167,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Hitung status otomatis dari tanggal
-    const autoStatus = computeAutoStatus(start_date, deadline);
+    // Hitung status otomatis dari tanggal mulai
+    const autoStatus = computeAutoStatus(start_date);
 
     // Insert activity utama
-    const { data: activity, error: insertError } = await supabase
+    const { data: activity, error: insertError } = await supabaseAdmin
       .from('activities')
       .insert([
         {
@@ -171,7 +183,6 @@ export async function POST(request: NextRequest) {
           start_date,
           deadline,
           status: autoStatus,
-          progress,
           description,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
@@ -196,7 +207,7 @@ export async function POST(request: NextRequest) {
         user_team: officer_teams[idx] || '',
       }));
 
-      const { error: officerInsertError } = await supabase
+      const { error: officerInsertError } = await supabaseAdmin
         .from('activity_officers')
         .insert(officerRows);
 
@@ -206,13 +217,13 @@ export async function POST(request: NextRequest) {
     }
 
     // 🔔 TRIGGER NOTIFIKASI WHATSAPP KE PIC
-    let notificationResult = { success: false, error: 'Not processed' };
+    let notificationResult: { success: boolean; error?: string } = { success: false, error: 'Not processed' };
 
     try {
       const { notifyActor } = await import('@/lib/whatsapp');
 
       // Ambil data user PIC lengkap dengan whatsapp
-      const { data: actorUser, error: userError } = await supabase
+      const { data: actorUser, error: userError } = await supabaseAdmin
         .from('users')
         .select('id, name, whatsapp')
         .eq('id', actor_id)

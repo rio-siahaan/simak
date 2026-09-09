@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
   Search,
@@ -10,15 +10,12 @@ import {
   Eye,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  XCircle,
   Loader2,
   X,
   ExternalLink,
   Save,
 } from "lucide-react";
 import { API_ENDPOINTS } from "@/lib/constants";
-import { getTeamColor } from "@/lib/db-helpers";
 import { useAuth } from "@/components/layout/auth-guard";
 
 interface Activity {
@@ -30,8 +27,7 @@ interface Activity {
   actor_name: string;
   start_date: string;
   deadline: string;
-  status: "pending" | "active" | "completed" | "overdue" | "delayed";
-  progress: number;
+  status: "pending" | "active" | "completed";
   description?: string;
   evidence_url?: string;
 }
@@ -52,28 +48,18 @@ const STATUS_CONFIG = {
     color: "bg-green-100 text-green-700 border-green-200",
     icon: CheckCircle2,
   },
-  overdue: {
-    label: "Terlambat",
-    color: "bg-red-100 text-red-700 border-red-200",
-    icon: AlertCircle,
-  },
-  delayed: {
-    label: "Tertunda",
-    color: "bg-yellow-100 text-yellow-700 border-yellow-200",
-    icon: XCircle,
-  },
 };
 
 const TEAMS = [
   "Semua Tim",
-  "IPDS",
-  "Statistik Sosial",
-  "Produksi",
-  "Distribusi",
-  "NWAS",
-  "PSS",
-  "Subbag Umum",
-  "Humas",
+  "Ketua Tim IPDS",
+  "Ketua Tim Sosial",
+  "Ketua Tim Produksi",
+  "Ketua Tim Distribusi",
+  "Ketua Tim Nerwilis",
+  "Ketua Tim PSS",
+  "Kepala Sub Bagian Umum",
+  "Ketua Tim Sakernas",
 ];
 
 const STATUS_FILTERS = [
@@ -81,8 +67,6 @@ const STATUS_FILTERS = [
   "Belum Dimulai",
   "Sedang Berjalan",
   "Selesai",
-  "Terlambat",
-  "Tertunda",
 ];
 
 export default function DaftarKegiatanPage() {
@@ -95,31 +79,26 @@ export default function DaftarKegiatanPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // States untuk Detail / Update Progress Modal
+  // States untuk Detail / Update Status Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<Activity | null>(null);
   const [editStatus, setEditStatus] = useState<Activity["status"]>("pending");
-  const [editProgress, setEditProgress] = useState(0);
   const [editEvidenceUrl, setEditEvidenceUrl] = useState("");
   const [savingProgress, setSavingProgress] = useState(false);
   const [modalMode, setModalMode] = useState<"view" | "edit">("view");
 
-  // Fetch activities dari API
-  useEffect(() => {
-    if (user) {
-      fetchActivities();
-    }
-  }, [user, selectedTeam, selectedStatus]);
+  // Fetch activities dari API - menggunakan useCallback untuk menghindari stale closure
+  const fetchActivities = useCallback(async () => {
+    if (!user) return;
 
-  const fetchActivities = async () => {
     try {
       setLoading(true);
       setError(null);
 
       const params = new URLSearchParams();
-      
+
       // Jika login sebagai Aktor, batasi hanya kegiatan dia
-      if (user?.role === "Aktor") {
+      if (user.role === "Aktor") {
         params.append("actor_id", user.id);
       } else {
         if (selectedTeam && selectedTeam !== "Semua Tim") {
@@ -140,14 +119,26 @@ export default function DaftarKegiatanPage() {
       }
 
       const result = await response.json();
-      setActivities(result.data || []);
+      // Status "overdue"/"delayed" sudah dihapus dari sistem — data lama yang
+      // masih ber-status tersebut diseragamkan tampil sebagai "Sedang Berjalan".
+      const normalized = (result.data || []).map((a: any) => ({
+        ...a,
+        status:
+          a.status === "overdue" || a.status === "delayed" ? "active" : a.status,
+      }));
+      setActivities(normalized);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Terjadi kesalahan");
       console.error("Error fetching activities:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, selectedTeam, selectedStatus]);
+
+  // Panggil fetchActivities saat dependencies berubah
+  useEffect(() => {
+    fetchActivities();
+  }, [fetchActivities]);
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Apakah Anda yakin ingin menghapus kegiatan "${title}"?`)) {
@@ -174,7 +165,6 @@ export default function DaftarKegiatanPage() {
   const openDetailsModal = (activity: Activity, mode: "view" | "edit" = "view") => {
     setSelectedActivity(activity);
     setEditStatus(activity.status);
-    setEditProgress(activity.progress);
     setEditEvidenceUrl(activity.evidence_url || "");
     setModalMode(mode);
     setIsModalOpen(true);
@@ -197,22 +187,21 @@ export default function DaftarKegiatanPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           status: editStatus,
-          progress: Number(editProgress),
           evidence_url: editEvidenceUrl,
         }),
       });
 
       if (!response.ok) {
-        throw new Error("Gagal menyimpan perubahan progres");
+        throw new Error("Gagal menyimpan perubahan status");
       }
 
       // Refresh list & tutup modal
       await fetchActivities();
       setIsModalOpen(false);
-      alert("Progres kegiatan berhasil diperbarui");
+      alert("Status kegiatan berhasil diperbarui");
     } catch (err) {
       alert(err instanceof Error ? err.message : "Gagal menyimpan perubahan");
-      console.error("Error updating progress:", err);
+      console.error("Error updating activity:", err);
     } finally {
       setSavingProgress(false);
     }
@@ -236,20 +225,20 @@ export default function DaftarKegiatanPage() {
   // Helper untuk mapping warna tim ke badge color
   const getTeamBadgeColor = (team: string) => {
     const colorMap: { [key: string]: string } = {
-      "Statistik Sosial": "bg-blue-100 text-blue-800 border-blue-200",
-      "Produksi": "bg-orange-100 text-orange-800 border-orange-200",
-      "Distribusi": "bg-green-100 text-green-800 border-green-200",
-      "IPDS": "bg-purple-100 text-purple-800 border-purple-200",
-      "NWAS": "bg-red-100 text-red-800 border-red-200",
-      "PSS": "bg-cyan-100 text-cyan-800 border-cyan-200",
-      "Subbag Umum": "bg-amber-100 text-amber-800 border-amber-200",
-      "Humas": "bg-pink-100 text-pink-800 border-pink-200",
+      "Ketua Tim Sosial": "bg-blue-100 text-blue-800 border-blue-200",
+      "Ketua Tim Produksi": "bg-orange-100 text-orange-800 border-orange-200",
+      "Ketua Tim Distribusi": "bg-green-100 text-green-800 border-green-200",
+      "Ketua Tim IPDS": "bg-purple-100 text-purple-800 border-purple-200",
+      "Ketua Tim Nerwilis": "bg-red-100 text-red-800 border-red-200",
+      "Ketua Tim PSS": "bg-cyan-100 text-cyan-800 border-cyan-200",
+      "Kepala Sub Bagian Umum": "bg-amber-100 text-amber-800 border-amber-200",
+      "Ketua Tim Sakernas": "bg-pink-100 text-pink-800 border-pink-200",
     };
     return colorMap[team] || "bg-gray-100 text-gray-800 border-gray-200";
   };
 
-  // Cek apakah user memiliki otorisasi edit progres
-  const canUserEditProgress = (activity: Activity) => {
+  // Cek apakah user memiliki otorisasi ubah status
+  const canUserEditStatus = (activity: Activity) => {
     if (!user) return false;
     return user.role === "Admin" || activity.actor_id === user.id;
   };
@@ -369,7 +358,7 @@ export default function DaftarKegiatanPage() {
 
         {/* Stats Summary */}
         {!loading && !error && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
             <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Total Kegiatan</p>
               <p className="text-3xl font-extrabold text-gray-900">
@@ -386,12 +375,6 @@ export default function DaftarKegiatanPage() {
               <p className="text-xs font-bold text-green-600 uppercase tracking-wider mb-1">Selesai</p>
               <p className="text-3xl font-extrabold text-green-700">
                 {filteredActivities.filter((a) => a.status === "completed").length}
-              </p>
-            </div>
-            <div className="bg-red-50/50 border border-red-100 rounded-xl p-5 shadow-sm">
-              <p className="text-xs font-bold text-red-600 uppercase tracking-wider mb-1">Terlambat</p>
-              <p className="text-3xl font-extrabold text-red-700">
-                {filteredActivities.filter((a) => a.status === "overdue").length}
               </p>
             </div>
           </div>
@@ -415,9 +398,6 @@ export default function DaftarKegiatanPage() {
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                       Tenggat Waktu
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
-                      Progress
                     </th>
                     <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">
                       Status
@@ -486,25 +466,6 @@ export default function DaftarKegiatanPage() {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-gray-200 rounded-full h-2 w-20">
-                              <div
-                                className={`h-2 rounded-full ${
-                                  activity.progress === 100
-                                    ? "bg-green-500"
-                                    : activity.progress >= 50
-                                    ? "bg-blue-500"
-                                    : "bg-amber-500"
-                                }`}
-                                style={{ width: `${activity.progress}%` }}
-                              ></div>
-                            </div>
-                            <span className="text-xs font-bold text-gray-600 w-8">
-                              {activity.progress}%
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
                           <span
                             className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border ${statusInfo.color}`}
                           >
@@ -524,12 +485,12 @@ export default function DaftarKegiatanPage() {
                               <Eye className="w-4 h-4" />
                             </button>
 
-                            {/* Tombol Edit Progres (Bisa Admin / Aktor PIC) */}
-                            {canUserEditProgress(activity) && (
+                            {/* Tombol Edit Status (Bisa Admin / Aktor PIC) */}
+                            {canUserEditStatus(activity) && (
                               <button
                                 onClick={() => openDetailsModal(activity, "edit")}
                                 className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100"
-                                title="Update Progres"
+                                title="Update Status"
                               >
                                 <Edit className="w-4 h-4" />
                               </button>
@@ -568,7 +529,7 @@ export default function DaftarKegiatanPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* DETIL & UPDATE PROGRESS MODAL (Unifies Details + Progress & Evidence form) */}
+        {/* DETIL & UPDATE STATUS MODAL (Unifies Details + Status & Evidence form) */}
         {/* ========================================================================= */}
         {isModalOpen && selectedActivity && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -633,20 +594,6 @@ export default function DaftarKegiatanPage() {
                       </div>
                     </div>
 
-                    {/* Progress bar */}
-                    <div>
-                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Kemajuan / Progress</span>
-                      <div className="flex items-center gap-3">
-                        <div className="flex-1 bg-gray-100 rounded-full h-3">
-                          <div
-                            className="h-3 rounded-full bg-gradient-to-r from-blue-500 to-emerald-500"
-                            style={{ width: `${selectedActivity.progress}%` }}
-                          ></div>
-                        </div>
-                        <span className="text-sm font-bold text-gray-800">{selectedActivity.progress}%</span>
-                      </div>
-                    </div>
-
                     {/* Deskripsi */}
                     <div>
                       <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1">Deskripsi Tugas</span>
@@ -676,19 +623,19 @@ export default function DaftarKegiatanPage() {
                     </div>
 
                     {/* Button to Switch to Edit Mode (jika diizinkan) */}
-                    {canUserEditProgress(selectedActivity) && (
+                    {canUserEditStatus(selectedActivity) && (
                       <div className="pt-4 border-t border-gray-150 flex justify-end">
                         <button
                           onClick={() => setModalMode("edit")}
                           className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-colors"
                         >
-                          Perbarui Progres & Bukti Dukung
+                          Perbarui Status & Bukti Dukung
                         </button>
                       </div>
                     )}
                   </div>
                 ) : (
-                  /* Mode Update Progress & Bukti Dukung */
+                  /* Mode Update Status & Bukti Dukung */
                   <form onSubmit={handleUpdateActivity} className="space-y-5">
                     
                     {/* Status Dropdown */}
@@ -704,33 +651,7 @@ export default function DaftarKegiatanPage() {
                         <option value="pending">Belum Dimulai</option>
                         <option value="active">Sedang Berjalan</option>
                         <option value="completed">Selesai</option>
-                        <option value="delayed">Tertunda</option>
-                        <option value="overdue">Terlambat</option>
                       </select>
-                    </div>
-
-                    {/* Progress Slider */}
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
-                          Persentase Progress
-                        </label>
-                        <span className="text-sm font-bold text-blue-600">{editProgress}%</span>
-                      </div>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={editProgress}
-                        onChange={(e) => {
-                          const val = Number(e.target.value);
-                          setEditProgress(val);
-                          // Otomatis ubah status ke Completed jika progres 100%, atau Active jika > 0%
-                          if (val === 100) setEditStatus("completed");
-                          else if (val > 0 && editStatus === "pending") setEditStatus("active");
-                        }}
-                        className="w-full accent-blue-600"
-                      />
                     </div>
 
                     {/* Google Drive Link */}

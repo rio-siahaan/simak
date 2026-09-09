@@ -19,6 +19,7 @@ import {
   X,
 } from "lucide-react";
 import { TEAMS, API_ENDPOINTS } from "@/lib/constants";
+import { displayTeamName } from "@/lib/db-helpers";
 import { useAuth } from "@/components/layout/auth-guard";
 
 interface UserOption {
@@ -29,18 +30,16 @@ interface UserOption {
   role: "Admin" | "Aktor";
 }
 
-type ActivityStatus = "pending" | "active" | "overdue";
+type ActivityStatus = "pending" | "active" | "completed";
 
 const TEAM_OPTIONS = TEAMS.filter((t) => t.id !== "all");
 
-/** Hitung status otomatis dari tanggal */
+/** Hitung status otomatis dari tanggal mulai */
 function computeAutoStatus(start_date: string, deadline: string): ActivityStatus {
   if (!start_date || !deadline) return "pending";
   const now = new Date();
   const start = new Date(start_date);
-  const end = new Date(deadline);
   if (now < start) return "pending";
-  if (now > end) return "overdue";
   return "active";
 }
 
@@ -55,10 +54,10 @@ const STATUS_PREVIEW: Record<ActivityStatus, { label: string; color: string; des
     color: "bg-blue-100 text-blue-700 border-blue-200",
     desc: "Kegiatan dalam periode aktif",
   },
-  overdue: {
-    label: "Terlambat",
-    color: "bg-red-100 text-red-700 border-red-200",
-    desc: "Deadline sudah lewat",
+  completed: {
+    label: "Selesai",
+    color: "bg-green-100 text-green-700 border-green-200",
+    desc: "Kegiatan sudah diselesaikan",
   },
 };
 
@@ -78,6 +77,7 @@ export default function TambahKegiatanPage() {
   const [startDate, setStartDate] = useState("");
   const [deadline, setDeadline] = useState("");
   const [description, setDescription] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
 
   // UI State untuk petugas
   const [selectedTeamFilter, setSelectedTeamFilter] = useState<string>("");
@@ -204,7 +204,7 @@ export default function TambahKegiatanPage() {
         start_date: new Date(startDate).toISOString(),
         deadline: new Date(deadline).toISOString(),
         description,
-        progress: 0,
+        evidence_url: evidenceUrl || null,
       };
 
       const res = await fetch(API_ENDPOINTS.activities, {
@@ -272,11 +272,12 @@ export default function TambahKegiatanPage() {
               <select
                 value={teamId}
                 onChange={(e) => setTeamId(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                className="w-full px-4 py-2.5 border border-gray-300 bg-gray-200 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
                 required
-                disabled={submitting || submitSuccess}
+                // disabled={submitting || submitSuccess}
+                disabled
               >
-                <option value="">Pilih Tim</option>
+                <option value="">{displayTeamName(teamName)}</option>
                 {TEAM_OPTIONS.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
@@ -567,6 +568,26 @@ export default function TambahKegiatanPage() {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-none transition"
                 disabled={submitting || submitSuccess}
               />
+            </div>
+
+            {/* ─── Tautan Bukti Dukung (Google Drive) ─── */}
+            <div>
+              <label htmlFor="evidence_url" className="block text-sm font-semibold text-gray-700 mb-2">
+                Tautan Bukti Dukung (Google Drive){" "}
+                <span className="text-gray-400 font-normal">(opsional)</span>
+              </label>
+              <input
+                type="text"
+                id="evidence_url"
+                value={evidenceUrl}
+                onChange={(e) => setEvidenceUrl(e.target.value)}
+                placeholder="https://drive.google.com/drive/folders/..."
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition"
+                disabled={submitting || submitSuccess}
+              />
+              <p className="text-xs text-gray-400 mt-1.5">
+                Tempel link folder Google Drive berisi bukti pelaksanaan kegiatan.
+              </p>
             </div>
 
             {/* ─── Aksi ─── */}

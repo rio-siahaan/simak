@@ -7,7 +7,7 @@ import type { Activity } from './supabase';
 /**
  * Tipe notifikasi yang didukung
  */
-export type NotificationType = 'created' | 'reminder_h1' | 'overdue' | 'evidence_uploaded';
+export type NotificationType = 'created' | 'completed';
 
 /**
  * Parameter yang tersedia untuk template
@@ -95,65 +95,19 @@ _Link di atas adalah khusus untuk Anda. Jangan bagikan ke pihak lain._
 _Pesan ini dikirim otomatis oleh SIMAK_
 _BPS Kabupaten Flores Timur_`,
 
-  // ─── PENGINGAT H-1 ───
-  // Dikirim otomatis 1 hari sebelum deadline
-  reminder_h1: `⏰ *SIMAK - Pengingat H-1 Deadline*
+  // ─── KEGIATAN SELESAI ───
+  // Dikirim ke aktor saat status kegiatan diubah menjadi Selesai
+  completed: `✅ *SIMAK - Kegiatan Selesai*
 
 Halo *{actorName}*,
 
-*PENGINGAT:* Deadline kegiatan berikut *BESOK*!
-
-📋 *{title}*
-📍 Tim: {team}
-⏰ Deadline: {deadlineFormatted}
-{description}
-
-⚠️ Pastikan:
-- Bukti dukung sudah terupload
-- Koordinasi dengan PIC jika ada kendala
-
-_Segera selesaikan sebelum tenggat waktu._
-
-_SIMAK - BPS Kabupaten Flores Timur_`,
-
-  // ─── KEGIATAN TERLAMBAT ───
-  // Dikirim otomatis saat deadline terlewat
-  overdue: `⚠️ *SIMAK - PERINGATAN: Deadline Terlewat*
-
-Halo *{actorName}*,
-
-Kegiatan berikut sudah *MELEWATI DEADLINE*:
-
-📋 *{title}*
-📍 Tim: {team}
-⏰ Deadline: {deadlineFormatted}
-⏱ Terlambat: {daysOverdue} hari
-
-🚨 *Tindakan segera:*
-1. Hubungi PIC untuk koordinasi
-2. Selesaikan kegiatan sesegera mungkin
-3. Upload bukti dukung dan update status
-
-_Keterlambatan akan tercatat di sistem._
-
-_SIMAK - BPS Kabupaten Flores Timur_`,
-
-  // ─── KONFIRMASI BUKTI DUKUNG TERUPLOAD ───
-  // Dikirim ke aktor setelah mengisi link bukti dukung
-  evidence_uploaded: `✅ *SIMAK - Bukti Dukung Diterima*
-
-Halo *{actorName}*,
-
-Bukti dukung kegiatan berikut telah diterima:
+Kegiatan berikut telah ditandai *SELESAI*:
 
 📋 *{title}*
 📍 Tim: {team}
 📅 Periode: {startDateFormatted} s/d {deadlineFormatted}
 
-📎 *Link Dokumen:*
-{evidenceUrl}
-
-Terima kasih telah melengkapi dokumentasi kegiatan.
+Terima kasih atas pelaksanaan dan dokumentasi kegiatannya.
 
 _SIMAK - BPS Kabupaten Flores Timur_`,
 };
@@ -193,16 +147,6 @@ export function renderTemplate(
   result = result.replace(/{evidenceFormUrl}/g, params.evidenceFormUrl || '');
   result = result.replace(/{activityId}/g, params.activityId || '');
   result = result.replace(/{actorId}/g, params.actorId || '');
-
-  // Hitung hari keterlambatan untuk template overdue
-  if (params.deadline) {
-    const deadlineDate = new Date(params.deadline);
-    const now = new Date();
-    const daysOverdue = Math.floor(
-      (now.getTime() - deadlineDate.getTime()) / (1000 * 60 * 60 * 24)
-    );
-    result = result.replace(/{daysOverdue}/g, String(Math.max(0, daysOverdue)));
-  }
 
   return result;
 }
@@ -277,7 +221,6 @@ export function buildNotificationMessage(
  * - {deadlineFormatted} : Tanggal deadline
  * - {description} : Deskripsi kegiatan
  * - {evidenceUrl} : Link bukti dukung
- * - {daysOverdue} : Hari keterlambatan (hanya untuk template overdue)
  *
  * Contoh custom:
  * created: `Halo {actorName}, Anda punya tugas baru: {title}. Selesaikan sebelum {deadlineFormatted}.`
