@@ -161,7 +161,7 @@ export default function ProfilPenggunaPage() {
                 <div className="flex items-center justify-between pb-3 border-b border-gray-100">
                   <span className="text-xs font-semibold text-gray-500">Grup Kerja</span>
                   <span className="text-xs font-bold text-gray-800 uppercase">
-                    Tim {user.team}
+                    {user.team}
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
