@@ -167,8 +167,19 @@ export async function middleware(request: NextRequest) {
     if (pathname.startsWith('/api/auth/')) {
       return NextResponse.next();
     }
-    // Hanya Admin yang bisa mutating data
-    if (!user || user.role !== 'Admin') {
+
+    // Khusus PATCH /api/activities/{id}: aktor (non-Admin) yang berhak
+    // boleh meng-update bukti dukung (evidence_url) kegiatan miliknya.
+    // Otorisasi detail ("apakah user benar-benar PIC/petugas kegiatan ini
+    // dan hanya mengubah evidence_url") dilakukan di handler
+    // activities/[id]/route.ts — middleware TIDAK bisa membaca request body,
+    // jadi isi update tidak bisa divalidasi di sini. Semua mutasi lain
+    // (POST create, DELETE, dan PATCH selain kegiatan) tetap Admin-only.
+    const isEvidencePatch =
+      method === 'PATCH' && /^\/api\/activities\/[^/]+$/.test(pathname);
+
+    // Hanya Admin yang bisa mutating data (kecuali evidence patch di atas)
+    if (!user || (user.role !== 'Admin' && !isEvidencePatch)) {
       return NextResponse.json(
         { error: 'Akses ditolak: Operasi ini memerlukan hak Admin' },
         { status: 403 }

@@ -169,7 +169,10 @@ export async function notifyActor(params: {
   });
 
   // 3. Simpan log ke database (idempotent: upsert by activity_id + user_id + type)
-  // Tambahkan log_data untuk detail dari Fonnte
+  // Syarat: tabel notifications WAJIB punya unique constraint (activity_id,
+  // user_id, type) — lihat supabase-migration-notifications-unique.sql.
+  // Tanpa ini, ON CONFLICT error tiap kali dan log tidak pernah tercatat
+  // padahal WhatsApp sudah terkirim.
   const { data: notif, error: dbError } = await supabase
     .from('notifications')
     .upsert(
@@ -180,7 +183,9 @@ export async function notifyActor(params: {
         status: sendResult.success ? 'sent' : 'failed',
         sent_at: sendResult.success ? new Date().toISOString() : null,
         error_message: sendResult.error || null,
-        // Tambahkan log_data ke error_message jika berhasil untuk tracking
+        // Simpan detail respons Fonnte (message_id, phone, duration) sebagai
+        // JSON di kolom log_data untuk keperluan debugging/dashboard.
+        log_data: sendResult.logData || null,
       },
       {
         onConflict: 'activity_id,user_id,type',
@@ -205,17 +210,21 @@ export async function notifyActor(params: {
 }
 
 /**
- * Kirim notifikasi ke SEMUA aktor suatu kegiatan (pakai junction table activity_actors)
+ * Kirim notifikasi ke SEMUA pelaksana suatu kegiatan (PIC + petugas).
+ * Sumber data sesuai model terbaru (migration 2 Sept 2026):
+ *  - PIC     → kolom activities.actor_id (+ users untuk whatsapp)
+ *  - Petugas → junction table activity_officers (join ke users utk whatsapp)
+ * TIDAK pakai junction legacy activity_actors yang tidak pernah diisi kode apa pun.
  * @returns { success: number, failed: number, details: Array<{user_id, success, error?, logData?}> }
  */
 export async function notifyAllActors(
   activityId: string,
   type: NotificationType
 ): Promise<{ success: number; failed: number; details: any[] }> {
-  // Ambil data kegiatan lengkap
+  // Ambil data kegiatan lengkap (termasuk actor_id/actor_name untuk PIC)
   const { data: activity, error: actErr } = await supabase
     .from('activities')
-    .select('id, title, team, start_date, deadline, description, evidence_url')
+    .select('id, title, team, start_date, deadline, description, evidence_url, actor_id, actor_name')
     .eq('id', activityId)
     .single();
 
@@ -223,29 +232,63 @@ export async function notifyAllActors(
     return { success: 0, failed: 0, details: [{ error: 'Kegiatan tidak ditemukan' }] };
   }
 
-  // Ambil aktor via junction table activity_actors (join ke users untuk dapatkan whatsapp)
-  const { data: actors, error: actorErr } = await supabase
-    .from('activity_actors')
+  // Supabase join `users!inner(whatsapp)` mengembalikan array — cast ke objek tunggal
+  type ActorRow = { user_id: string; user_name: string; users: { whatsapp: string } | { whatsapp: string }[] };
+  const all: { user_id: string; user_name: string; whatsapp: string }[] = [];
+  const seen = new Set<string>();
+
+  // 1. PIC: whatsapp diambil dari tabel users (kolom activities tidak menyimpannya)
+  if (activity.actor_id && !seen.has(activity.actor_id)) {
+    seen.add(activity.actor_id);
+    const { data: picUser } = await supabase
+      .from('users')
+      .select('whatsapp')
+      .eq('id', activity.actor_id)
+      .single();
+    if (picUser?.whatsapp) {
+      all.push({
+        user_id: activity.actor_id,
+        user_name: activity.actor_name || '',
+        whatsapp: picUser.whatsapp,
+      });
+    }
+  }
+
+  // 2. Petugas pelaksana via junction activity_officers
+  const { data: officers, error: officerErr } = await supabase
+    .from('activity_officers')
     .select('user_id, user_name, users!inner(whatsapp)')
     .eq('activity_id', activityId);
 
-  if (actorErr || !actors || actors.length === 0) {
-    return { success: 0, failed: 0, details: [{ error: 'Tidak ada aktor untuk kegiatan ini' }] };
+  if (officerErr) {
+    return { success: 0, failed: 0, details: [{ error: officerErr.message }] };
   }
 
-  // Supabase join `users!inner(whatsapp)` mengembalikan array — cast ke objek tunggal
-  type ActorRow = { user_id: string; user_name: string; users: { whatsapp: string } | { whatsapp: string }[] };
-  const typedActors = actors as unknown as ActorRow[];
+  for (const o of (officers || []) as unknown as ActorRow[]) {
+    if (seen.has(o.user_id)) continue; // jangan kirim ganda jika juga PIC
+    seen.add(o.user_id);
+    const whatsapp = Array.isArray(o.users) ? o.users[0]?.whatsapp : o.users.whatsapp;
+    if (whatsapp) {
+      all.push({ user_id: o.user_id, user_name: o.user_name, whatsapp });
+    }
+  }
 
-  // Kirim ke setiap aktor paralel (batch) — rate limit Fonnte ~30/menit, cukup untuk skala BPS
+  if (all.length === 0) {
+    return {
+      success: 0,
+      failed: 0,
+      details: [{ error: 'Tidak ada pelaksana (PIC/petugas) dengan nomor WhatsApp terdaftar' }],
+    };
+  }
+
+  // Kirim ke setiap pelaksana paralel (batch) — rate limit Fonnte ~30/menit, cukup utk skala BPS
   const results = await Promise.all(
-    typedActors.map(async (a) => {
-      const whatsapp = Array.isArray(a.users) ? a.users[0]?.whatsapp : a.users.whatsapp;
+    all.map(async (a) => {
       const res = await notifyActor({
         activity_id: activityId,
         user_id: a.user_id,
         type,
-        user: { id: a.user_id, name: a.user_name, whatsapp },
+        user: { id: a.user_id, name: a.user_name, whatsapp: a.whatsapp },
         activity,
       });
       return { user_id: a.user_id, ...res };

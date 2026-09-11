@@ -87,7 +87,9 @@ Anda ditugaskan sebagai pelaksana kegiatan berikut:
 📌 *Tindakan yang diperlukan:*
 1. Laksanakan kegiatan sesuai jadwal
 2. Upload bukti dukung melalui link berikut:
-   {evidenceFormUrl}
+   
+{evidenceFormUrl}
+
 3. Pastikan selesai sebelum deadline
 
 _Link di atas adalah khusus untuk Anda. Jangan bagikan ke pihak lain._

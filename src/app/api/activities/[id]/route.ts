@@ -1,6 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
+/**
+ * Cek apakah user tercatat sebagai pelaksana (PIC atau petugas) suatu kegiatan.
+ * Basis datanya sama dengan API actors/route.ts: kolom activities.actor_id
+ * (PIC) + junction activity_officers (petugas). Jangan pakai junction legacy
+ * activity_actors yang tidak pernah diisi oleh kode apa pun.
+ */
+async function isActorOfActivity(
+  activityId: string,
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) return false;
+
+  // PIC: kolom actor_id di tabel activities
+  const { data: activity } = await supabase
+    .from("activities")
+    .select("actor_id")
+    .eq("id", activityId)
+    .single();
+  if (activity?.actor_id === userId) return true;
+
+  // Petugas: junction table activity_officers
+  const { data: officers } = await supabase
+    .from("activity_officers")
+    .select("user_id")
+    .eq("activity_id", activityId)
+    .eq("user_id", userId);
+
+  return (officers?.length ?? 0) > 0;
+}
+
 // GET - Ambil detail kegiatan berdasarkan ID
 export async function GET(
   request: NextRequest,
@@ -58,6 +88,32 @@ export async function PATCH(
       description,
       evidence_url,
     } = body;
+
+    // Otorisasi upload bukti dukung (lihat juga izin yang dibuka di middleware):
+    // Admin boleh mengubah semua field. Non-Admin (PIC/petugas) HANYA boleh
+    // meng-update evidence_url kegiatan yang menjadi tanggung jawabnya,
+    // disetujui pakai verifikasi di isActorOfActivity()
+    // (source of truth: activities.actor_id + activity_officers — bukan
+    // junction legacy activity_actors yang tidak pernah diisi).
+    if (userRole !== 'Admin') {
+      // a) Non-Admin hanya boleh membawa field evidence_url
+      const nonAllowedFields = Object.keys(body).filter(
+        (k) => k !== 'evidence_url'
+      );
+      if (nonAllowedFields.length > 0) {
+        return NextResponse.json(
+          { error: 'Non-Admin hanya diizinkan mengunggah bukti dukung (evidence_url)' },
+          { status: 403 }
+        );
+      }
+      // b) Harus benar-benar PIC atau petugas kegiatan ini
+      if (!(await isActorOfActivity(id, userId))) {
+        return NextResponse.json(
+          { error: 'Akses ditolak: Anda bukan pelaksana kegiatan ini' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Catat status lama dulu: dipakai untuk menghindari notifikasi "selesai"
     // yang ganda kalau kegiatan yang sama berulang kali di-set completed.

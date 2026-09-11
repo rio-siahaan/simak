@@ -170,7 +170,9 @@ Selain "created", ada template lain yang bisa digunakan nanti:
 - Pastikan sesuai dengan environment (dev: localhost, prod: domain real)
 
 ### Aktor tidak bisa akses halaman?
-- Pastikan aktor terdaftar di junction table `activity_actors`
+- Pastikan user adalah PIC (`activities.actor_id`) ATAU terdaftar sebagai petugas
+  di junction table `activity_officers` kegiatan tersebut (bukan tabel legacy
+  `activity_actors`, yang tidak pernah diisi)
 - Cek API `/api/activities/{id}/actors?actor_id={actorId}` harus return data
 
 ## Roadmap Selanjutnya

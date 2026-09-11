@@ -639,7 +639,7 @@ export default function DaftarKegiatanPage() {
                   <form onSubmit={handleUpdateActivity} className="space-y-5">
                     
                     {/* Status Dropdown */}
-                    <div className="space-y-1.5">
+                    {/* <div className="space-y-1.5">
                       <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider">
                         Status Tugas
                       </label>
@@ -652,7 +652,7 @@ export default function DaftarKegiatanPage() {
                         <option value="active">Sedang Berjalan</option>
                         <option value="completed">Selesai</option>
                       </select>
-                    </div>
+                    </div> */}
 
                     {/* Google Drive Link */}
                     <div className="space-y-1.5">

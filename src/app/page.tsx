@@ -229,8 +229,7 @@ export default function Home() {
           Kegiatan.
         </p>
         <p className="mt-1">
-          Dikembangkan untuk BPS Kabupaten Flores Timur oleh Rio Manuppak
-          Siahaan (Pranata Komputer Ahli).
+          Made with love.
         </p>
       </footer>
 
