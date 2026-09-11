@@ -131,7 +131,7 @@ export default function RekapLaporanPage() {
       else if (a.status === "active") row.active++;
       else if (a.status === "pending") row.pending++;
     }
-    return Array.from(map.values()).sort((a, b) => b.total - a.total);
+    return Array.from(map.values(            )).sort((a, b) => b.total - a.total);
   }, [activities]);
 
   // ===== AGREGASI NOTIFIKASI =====
@@ -232,8 +232,8 @@ export default function RekapLaporanPage() {
         <div className="flex items-center gap-2 mb-8 border-b border-gray-200">
           {[
             { key: "overview", label: "Overview" },
-            { key: "team", label: "Per Tim" },
-            { key: "notification", label: "Notifikasi" },
+            { key: "team", label: "Per Tim" }
+            // { key: "notification", label: "Notifikasi" },
           ].map((tab) => (
             <button
               key={tab.key}

@@ -360,7 +360,9 @@ export default function KalenderKegiatanPage() {
                     className="w-4 h-4 rounded-md shadow-sm shrink-0"
                     style={{ backgroundColor: team.color }}
                   ></div>
-                  <span className="text-xs font-semibold text-gray-700">{team.name}</span>
+                  <span className="text-xs font-semibold text-gray-700">
+                    {team.name.replace(/ketua|kepala/gi, "").trim()}
+                  </span>
                 </div>
               ))}
             </div>
